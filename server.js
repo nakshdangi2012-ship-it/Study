@@ -1,3 +1,4 @@
+ 
 'use strict';
 /*
  * Study - multi-AI study tutor. One file server. Node 18+.
@@ -346,7 +347,286 @@ app.use('/api', apiLimiter);
 
 /* --- public --- */
 app.get('/healthz', (req, res) => res.json({ ok: true }));
-app.get('/api/config', (req, res) =>
+app.get('/api/config', (req, res) => res.json({
+  freeQuestions: C.freeQ, deepSources: !!C.pplxKey, proQuestions: C.proQ,
+  buyNote: 'Buying codes inside the app is coming soon. For now, ask the owner for a code.',
+}));
 
+/* --- accounts --- */
+const DUMMY = bcrypt.hashSync('not-a-real-password', 10);
+app.post('/api/signup', authLimiter, ah(async (req, res) => {
+  const email = str(req.body.email, 120).toLowerCase(), pw = typeof req.body.password === 'string' ? req.body.password : '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email.' });
+  if (pw.length < 8 || pw.length > 100) return res.status(400).json({ error: 'Password must be 8 to 100 characters.' });
+  if (db.emails[email]) return res.status(409).json({ error: 'That email already has an account. Try logging in.' });
+  const hash = await bcrypt.hash(pw, 10);
+  if (db.emails[email]) return res.status(409).json({ error: 'That email already has an account. Try logging in.' });
+  const id = crypto.randomBytes(12).toString('hex');
+  const u = { id, email, hash, created: new Date().toISOString(), plan: 'free', quota: C.freeQ, used: 0, streak: { last: '', count: 0 }, badTries: 0, lockUntil: 0 };
+  db.users[id] = u; db.emails[email] = id; saveDb();
+  const token = jwt.sign({ uid: id }, C.jwtSecret, { expiresIn: '30d' });
+  setCookie(res, token);
+  res.json({ token, user: pub(u) });
+}));
+app.post('/api/login', authLimiter, ah(async (req, res) => {
+  const email = str(req.body.email, 120).toLowerCase(), pw = typeof req.body.password === 'string' ? req.body.password.slice(0, 100) : '';
+  const u = db.users[db.emails[email]];
+  const ok = await bcrypt.compare(pw, u ? u.hash : DUMMY);
+  if (!u || !ok) return res.status(401).json({ error: 'Wrong email or password.' });
+  const token = jwt.sign({ uid: u.id }, C.jwtSecret, { expiresIn: '30d' });
+  setCookie(res, token);
+  res.json({ token, user: pub(u) });
+}));
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', `study_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${PROD ? '; Secure' : ''}`);
+  res.json({ ok: true });
+});
+app.get('/api/me', requireUser, (req, res) => res.json({ user: pub(req.user) }));
 
-                 
+/* --- redeem --- */
+app.post('/api/redeem', redeemLimiter, requireUser, (req, res) => {
+  const u = req.user, now = Date.now();
+  if (u.lockUntil && u.lockUntil > now) {
+    return res.status(429).json({ error: `Too many wrong codes. This account is locked for ${Math.ceil((u.lockUntil - now) / 60000)} more minute(s).`, locked: true });
+  }
+  const n = normCode(req.body.code);
+  const rec = (n.length === 12 || n.length === 24) ? db.codes[sha256(n)] : null;
+  if (!rec || rec.redeemedBy || rec.revoked) {
+    u.badTries = (u.badTries || 0) + 1;
+    let locked = false;
+    if (u.badTries >= 5) { u.lockUntil = now + 15 * 60e3; u.badTries = 0; locked = true; }
+    saveDb();
+    return res.status(locked ? 429 : 400).json({ error: locked ? 'Too many wrong codes. This account is locked for 15 minutes.' : 'That code is not valid, or it was already used.', locked });
+  }
+  rec.redeemedBy = u.id; rec.redeemedAt = new Date().toISOString();
+  applyCode(u, rec.type); u.badTries = 0; u.lockUntil = 0;
+  saveDb();
+  const msg = { UNLIMITED_PRO: 'Unlimited Pro unlocked!', PLUS10: '10 more questions added!', PRO: `Pro unlocked with ${C.proQ} questions!` }[rec.type];
+  res.json({ ok: true, message: msg, type: rec.type, user: pub(u) });
+});
+
+/* --- tutoring --- */
+app.post('/api/chat', chatLimiter, requireUser, ah(async (req, res) => {
+  const b = req.body, msg = str(b.message, 2000);
+  if (!msg) return res.status(400).json({ error: 'Please type a question.' });
+  const mode = MODES[b.mode] ? b.mode : 'explain', deep = b.deep === true;
+  if (deep && !isPro(req.user)) return res.status(403).json({ error: 'Understand deeply is a Pro feature. Enter a code to unlock it.', locked: true });
+  if (!gate(req, res, 'chat', false)) return;
+  const x = ctxOf(b), pro = isPro(req.user), system = sysPrompt(x, pro, mode), max = tokensFor(pro);
+  try {
+    let answer, sources = null, deepFallback = false;
+    if (deep && C.pplxKey) {
+      try { const r = await perplexityDeep({ system, question: msg, max }); answer = r.text; sources = r.sources; }
+      catch (e) { if (!(e instanceof AIError)) throw e; deepFallback = true; }
+    } else if (deep) deepFallback = true;
+    if (!answer) answer = await chatAI({ system, messages: cleanHistory(b.history).concat([{ role: 'user', content: msg }]), max });
+    consume(req.user);
+    res.json({ answer, sources, deepFallback, mode, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+
+app.post('/api/vision', uploadLimiter, requireUser, ah(async (req, res) => {
+  if (!isPro(req.user)) return res.status(403).json({ error: 'Photo questions are a Pro feature. Enter a code to unlock it.', locked: true });
+  let b64 = typeof req.body.image === 'string' ? req.body.image : '';
+  b64 = b64.replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
+  if (!b64 || !/^[A-Za-z0-9+/]+=*$/.test(b64)) return res.status(400).json({ error: 'Please choose a photo.' });
+  const buf = Buffer.from(b64, 'base64');
+  if (buf.length > 5 * 1024 * 1024) return res.status(413).json({ error: 'Photo is too big (max 5 MB).' });
+  const mime = magic(buf);
+  if (!mime) return res.status(415).json({ error: 'Only JPEG, PNG or WebP photos are allowed.' });
+  if (!C.geminiKey) return res.status(503).json({ error: 'Photo questions need the Gemini key, which is not set on the server yet.' });
+  if (!gate(req, res, 'chat', false)) return;
+  const x = ctxOf(req.body), q = str(req.body.question, 1000) || 'Read the question in this photo and teach me how to solve it.';
+  try {
+    const answer = await geminiText({ system: sysPrompt(x, true, 'solve'), messages: [{ role: 'user', content: q }], max: tokensFor(true), image: { mime, b64: buf.toString('base64') } });
+    consume(req.user); // photo is kept in memory only and never written to disk
+    res.json({ answer, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+
+app.post('/api/image', uploadLimiter, requireUser, ah(async (req, res) => {
+  const prompt = str(req.body.prompt, 500);
+  if (!prompt) return res.status(400).json({ error: 'Describe the diagram you want.' });
+  if (!gate(req, res, 'image', true)) return;
+  if (!C.geminiKey) return res.status(503).json({ error: 'Diagrams need the Gemini key, which is not set on the server yet.' });
+  try {
+    const j = await http(`${C.geminiBase}/v1beta/models/${encodeURIComponent(C.geminiImageModel)}:generateContent`, {
+      method: 'POST', headers: gHeaders(),
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Draw a clear, simple, labelled educational diagram for students: ' + prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+    }, 'Gemini');
+    const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+    const p = parts.map(q => q.inlineData || q.inline_data).find(Boolean);
+    if (!p || !p.data) throw new AIError('Gemini could not draw that. Try a simpler description (image creation may not be on the free tier in your country).', 502);
+    consume(req.user);
+    res.json({ mime: p.mimeType || p.mime_type || 'image/png', data: p.data, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+
+app.post('/api/video', uploadLimiter, requireUser, ah(async (req, res) => {
+  const prompt = str(req.body.prompt, 500);
+  if (!prompt) return res.status(400).json({ error: 'Describe the short video you want.' });
+  if (!gate(req, res, 'video', true)) return;
+  if (!C.geminiKey) return res.status(503).json({ error: 'Video needs the Gemini key, which is not set on the server yet.' });
+  try {
+    const j = await http(`${C.geminiBase}/v1beta/models/${encodeURIComponent(C.veoModel)}:predictLongRunning`, {
+      method: 'POST', headers: gHeaders(),
+      body: JSON.stringify({ instances: [{ prompt: 'Short educational video: ' + prompt }], parameters: { aspectRatio: '16:9' } }),
+    }, 'Gemini video');
+    if (!j.name || typeof j.name !== 'string') throw new AIError('Video did not start. Video is often not on the free tier.', 502);
+    const id = crypto.randomBytes(10).toString('hex');
+    db.videos[id] = { user: req.user.id, op: j.name, uri: '', created: Date.now() };
+    for (const k of Object.keys(db.videos)) if (Date.now() - db.videos[k].created > 3 * 86400e3) delete db.videos[k];
+    consume(req.user);
+    res.json({ id, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+app.get('/api/video/:id', requireUser, ah(async (req, res) => {
+  const v = db.videos[req.params.id];
+  if (!v || v.user !== req.user.id) return res.status(404).json({ error: 'Video not found.' });
+  if (v.uri) return res.json({ done: true, url: `/api/video/${req.params.id}/file` });
+  try {
+    if (!/^[A-Za-z0-9_\-/.]+$/.test(v.op)) throw new AIError('Bad video job.', 500);
+    const j = await http(`${C.geminiBase}/v1beta/${v.op}`, { headers: gHeaders() }, 'Gemini video');
+    if (!j.done) return res.json({ done: false });
+    if (j.error) throw new AIError('The video could not be made (it may have been blocked by a safety filter).', 502);
+    const r = j.response || {};
+    const g = (r.generateVideoResponse || {}).generatedSamples || r.generatedVideos || r.videos || [];
+    const uri = g[0] && ((g[0].video && g[0].video.uri) || g[0].uri);
+    if (!uri) throw new AIError('The video finished but no file came back.', 502);
+    v.uri = uri; saveDb();
+    res.json({ done: true, url: `/api/video/${req.params.id}/file` });
+  } catch (e) { sendErr(res, e); }
+}));
+app.get('/api/video/:id/file', requireUser, ah(async (req, res) => {
+  const v = db.videos[req.params.id];
+  if (!v || v.user !== req.user.id || !v.uri) return res.status(404).json({ error: 'Video not found.' });
+  let host = '', base = '';
+  try { host = new URL(v.uri).host; base = new URL(C.geminiBase).host; } catch (e) { return res.status(502).json({ error: 'Bad video link.' }); }
+  if (host !== base && !/(^|\.)googleapis\.com$/.test(host)) return res.status(502).json({ error: 'Unexpected video host.' });
+  try {
+    const r = await fetch(v.uri, { headers: { 'x-goog-api-key': C.geminiKey }, signal: AbortSignal.timeout(C.timeoutMs) });
+    if (!r.ok) return res.status(502).json({ error: 'Could not download the video.' });
+    res.setHeader('Content-Type', 'video/mp4');
+    res.status(200).send(Buffer.from(await r.arrayBuffer()));
+  } catch (e) { res.status(502).json({ error: 'Could not download the video.' }); }
+}));
+
+/* --- Pro: flashcards, planner, notes --- */
+function parseCards(t) {
+  const s = t.replace(/```(?:json)?/g, '');
+  const a = s.indexOf('['), z = s.lastIndexOf(']');
+  if (a < 0 || z < a) return [];
+  try {
+    return JSON.parse(s.slice(a, z + 1)).filter(c => c && typeof c.q === 'string' && typeof c.a === 'string').slice(0, 12).map(c => ({ q: c.q.slice(0, 300), a: c.a.slice(0, 500) }));
+  } catch (e) { return []; }
+}
+app.post('/api/flashcards', chatLimiter, requireUser, ah(async (req, res) => {
+  const topic = str(req.body.topic, 200);
+  if (!topic) return res.status(400).json({ error: 'Type a topic for the flashcards.' });
+  if (!gate(req, res, 'chat', true)) return;
+  const x = ctxOf(req.body);
+  try {
+    const system = sysPrompt(x, true, 'explain') + '\nTASK: make flashcards. Reply with ONLY a JSON array of 8 objects like [{"q":"question","a":"short answer"}]. No other text.';
+    const t = await chatAI({ system, messages: [{ role: 'user', content: 'Flashcards for: ' + topic }], max: 1500 });
+    const cards = parseCards(t);
+    if (!cards.length) throw new AIError('Could not make flashcards this time. Please try again.', 502);
+    consume(req.user);
+    res.json({ cards, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+app.post('/api/planner', chatLimiter, requireUser, ah(async (req, res) => {
+  const goal = str(req.body.goal, 300), hours = Math.min(12, Math.max(0.5, Number(req.body.hours) || 2));
+  if (!goal) return res.status(400).json({ error: 'Tell me what you are studying for.' });
+  if (!gate(req, res, 'chat', true)) return;
+  const x = ctxOf(req.body);
+  try {
+    const system = sysPrompt(x, true, 'explain') + `\nTASK: make a 7-day study plan (Day 1 to Day 7), about ${hours} hour(s) per day, with a small revision and rest on the last day. Use short bullet points per day.`;
+    const plan = await chatAI({ system, messages: [{ role: 'user', content: 'My goal: ' + goal }], max: 1800 });
+    consume(req.user);
+    res.json({ plan, user: pub(req.user) });
+  } catch (e) { sendErr(res, e); }
+}));
+const proOnly = (req, res, next) => (isPro(req.user) ? next() : res.status(403).json({ error: 'Saved notes are a Pro feature. Enter a code to unlock it.', locked: true }));
+app.get('/api/notes', requireUser, proOnly, (req, res) => {
+  const q = str(req.query.q, 80).toLowerCase();
+  let list = db.notes[req.user.id] || [];
+  if (q) list = list.filter(n => (n.title + ' ' + n.body).toLowerCase().includes(q));
+  res.json({ notes: list.slice().reverse() });
+});
+app.post('/api/notes', requireUser, proOnly, (req, res) => {
+  const title = str(req.body.title, 120) || 'Untitled', body = str(req.body.body, 20000);
+  if (!body) return res.status(400).json({ error: 'Nothing to save.' });
+  const list = db.notes[req.user.id] || (db.notes[req.user.id] = []);
+  if (list.length >= 200) return res.status(400).json({ error: 'Notes library is full (200). Delete some first.' });
+  const n = { id: crypto.randomBytes(6).toString('hex'), title, body, created: new Date().toISOString() };
+  list.push(n); saveDb();
+  res.json({ note: n });
+});
+app.delete('/api/notes/:id', requireUser, proOnly, (req, res) => {
+  const list = db.notes[req.user.id] || [];
+  const i = list.findIndex(n => n.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'Note not found.' });
+  list.splice(i, 1); saveDb(); res.json({ ok: true });
+});
+
+/* --- admin --- */
+app.post('/api/admin/codes', adminLimiter, requireAdmin, (req, res) => {
+  const count = Math.floor(Number(req.body.count)), type = req.body.type, format = req.body.format;
+  if (!(count >= 1 && count <= 100)) return res.status(400).json({ error: 'Count must be 1 to 100.' });
+  if (!TYPES.includes(type)) return res.status(400).json({ error: 'Type must be ' + TYPES.join(', ') });
+  if (!FORMATS.includes(format)) return res.status(400).json({ error: 'Format must be strong or standard.' });
+  const codes = [];
+  for (let i = 0; i < count; i++) codes.push(mintCode(type, format));
+  saveDb();
+  res.json({ codes }); // plain codes are shown ONCE; only hashes are stored
+});
+app.get('/api/admin/codes', adminLimiter, requireAdmin, (req, res) => {
+  const list = Object.keys(db.codes).map(h => {
+    const c = db.codes[h], u = c.redeemedBy && db.users[c.redeemedBy];
+    return { id: h.slice(0, 12), type: c.type, format: c.format, created: c.created, status: c.revoked ? 'revoked' : c.redeemedBy ? 'redeemed' : 'unused', redeemedAt: c.redeemedAt, redeemedBy: u ? u.email : c.redeemedBy };
+  }).sort((a, b) => (a.created < b.created ? 1 : -1));
+  res.json({ codes: list.slice(0, 500), total: list.length });
+});
+app.post('/api/admin/codes/:id/revoke', adminLimiter, requireAdmin, (req, res) => {
+  const id = String(req.params.id);
+  const h = /^[0-9a-f]{12}$/.test(id) ? Object.keys(db.codes).find(k => k.startsWith(id)) : null;
+  if (!h) return res.status(404).json({ error: 'Code not found.' });
+  if (db.codes[h].redeemedBy) return res.status(400).json({ error: 'Already redeemed, cannot revoke.' });
+  db.codes[h].revoked = true; saveDb(); res.json({ ok: true });
+});
+
+/* --- pages: CSP hashes for the inline script/style are computed per file --- */
+const pageCache = {};
+function page(file) {
+  const full = path.join(PUB, file), m = fs.statSync(full).mtimeMs;
+  if (pageCache[file] && pageCache[file].m === m) return pageCache[file];
+  const html = fs.readFileSync(full, 'utf8');
+  const h = (re) => { const o = []; let k; while ((k = re.exec(html))) if (k[1].trim()) o.push("'sha256-" + crypto.createHash('sha256').update(k[1]).digest('base64') + "'"); return o.join(' '); };
+  const csp = BASE_CSP.replace("default-src 'self'", "default-src 'self'; script-src 'self' " + h(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g) + "; style-src 'self' " + h(/<style[^>]*>([\s\S]*?)<\/style>/g));
+  return (pageCache[file] = { m, html, csp });
+}
+['index.html', 'admin.html', 'privacy.html', 'offline.html'].forEach(f => {
+  const send = (req, res) => {
+    let p; try { p = page(f); } catch (e) { return res.status(404).send('Not found'); }
+    res.setHeader('Content-Security-Policy', p.csp);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(p.html);
+  };
+  app.get('/' + f, send);
+  if (f === 'index.html') app.get('/', send);
+});
+app.use(express.static(PUB, {
+  index: false,
+  setHeaders: (res, p) => { if (/sw\.js$/.test(p)) res.setHeader('Cache-Control', 'no-cache'); },
+}));
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) return res.status(400).json({ error: 'Bad request.' });
+  if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'That is too big.' });
+  console.error('[study] unexpected', err && err.message);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
+});
+
+if (require.main === module) app.listen(C.port, () => console.log(`Study running on port ${C.port}`));
+module.exports = app;
