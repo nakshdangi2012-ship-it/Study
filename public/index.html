@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1a3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Study">
+<title>Study - your AI study tutor</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+:root{--bg:#0b0f1a;--panel:#121826;--panel2:#182038;--line:#232c44;--navy:#1b3a8a;--navy2:#2747a8;--text:#e6e9f2;--mut:#9aa3b8;--acc:#7da2ff;--bad:#ff7b7b;--ok:#6fd6a0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:#0a1226;border-bottom:1px solid var(--line)}
+header .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:20px;letter-spacing:-.3px}
+header svg{width:30px;height:30px}
+.sp{flex:1}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer}
+.chip.warn{border-color:var(--bad);color:var(--bad)}
+main{max-width:720px;margin:0 auto;padding:14px}
+h2{font-size:20px;margin:6px 0 10px;letter-spacing:-.2px}
+h3{font-size:16px;margin:0 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+input,select,textarea,button{font:inherit;color:var(--text)}
+input,select,textarea{width:100%;background:#0d1322;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px}
+textarea{min-height:84px;resize:vertical}
+::placeholder{color:#7d869c}
+input[type=file]{padding:9px;font-size:14px}
+input[type=file]::file-selector-button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-right:10px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--navy2);border-color:var(--navy2)}
+.btn{background:var(--navy2);border:0;border-radius:12px;padding:12px 18px;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:var(--panel2);border:1px solid var(--line)}
+.btn.sm{padding:8px 12px;font-size:14px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>*{flex:0 0 auto}.row .grow{flex:1 1 140px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}
+.chips button{white-space:nowrap;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;font-size:14px}
+.chips button.on{background:var(--navy);border-color:var(--navy2)}
+.pro{display:inline-block;background:#e6e9f2;color:#0b1a3a;font-size:10px;font-weight:800;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;letter-spacing:.4px}
+.muted{color:var(--mut);font-size:13px}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+.ok{color:var(--ok)}
+details summary{cursor:pointer;font-weight:600;padding:2px 0}
+.bubble{border-radius:16px;padding:12px 14px;margin:10px 0;overflow-wrap:anywhere}
+.bubble.u{background:var(--navy);margin-left:36px}
+.bubble.a{background:var(--panel);border:1px solid var(--line);margin-right:8px}
+.bubble p{margin:6px 0}.bubble ul{margin:6px 0;padding-left:20px}.bubble h4{margin:10px 0 4px;color:var(--acc)}
+.bubble code{background:#0d1322;padding:1px 5px;border-radius:6px}
+.bubble a{color:var(--acc)}
+.src{font-size:13px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.src a{display:block;margin:3px 0;word-break:break-all}
+.ans{margin-top:8px;padding:10px;border-radius:12px;background:#0d1322;border:1px dashed var(--navy2)}
+.mic{width:48px;height:48px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mic svg{width:22px;height:22px}
+.mic.on{background:var(--bad);border-color:var(--bad)}
+.tg{display:flex;align-items:center;gap:8px;font-size:14px}
+.tg input{width:20px;height:20px;accent-color:var(--navy2)}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#0a1226;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;padding:10px 2px 8px;color:var(--mut);font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button svg{width:22px;height:22px}
+nav button.on{color:var(--acc)}
+.bar{display:flex;gap:10px;align-items:center;background:var(--navy);padding:10px 14px;font-size:14px}
+.bar button{margin-left:auto}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;width:100%;max-width:560px;padding:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto}
+.flash{perspective:900px;height:210px;margin:10px 0;cursor:pointer}
+.flash .in{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.flash.flip .in{transform:rotateY(180deg)}
+.flash .f,.flash .b{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;font-size:19px;overflow:auto}
+.flash .f{background:var(--navy);border:1px solid var(--navy2)}
+.flash .b{background:#0d1322;border:1px solid var(--acc);transform:rotateY(180deg)}
+.note{border-bottom:1px solid var(--line);padding:10px 0}
+.note h4{margin:0 0 4px}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1b3a8a;border:1px solid #2747a8;color:#e6e9f2;padding:10px 16px;border-radius:12px;z-index:60;font-size:14px;max-width:88%;text-align:center}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--mut);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-3px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+img.out,video.out{max-width:100%;border-radius:12px;margin-top:10px;background:#000}
+#printArea{display:none}
+@media print{body>*:not(#printArea){display:none!important}#printArea{display:block;color:#000;background:#fff;padding:12px;font-family:Georgia,serif}#printArea h4{color:#000}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><svg viewBox="0 0 64 64" fill="none" stroke="#7da2ff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M32 12 4 26l28 14 28-14z"/><path d="M16 34v12c0 4 8 8 16 8s16-4 16-8V34"/><path d="M60 26v16"/></svg>Study</div>
+  <div class="sp"></div>
+  <span id="streak" class="chip" hidden></span>
+  <button id="quotaChip" class="chip" hidden></button>
+</header>
+<div id="installBar" class="bar" hidden><span id="installMsg">Install Study on your phone</span><button id="installBtn" class="btn sm">Install</button><button id="installX" class="btn ghost sm" aria-label="Close">&#10005;</button></div>
+
+<main>
+<!-- LOGIN -->
+<section id="authView" hidden>
+  <div class="card">
+    <h2 id="authTitle">Welcome to Study</h2>
+    <p class="muted">Your friendly AI tutor. Make a free account to start. You get free questions. Your account works on any phone or computer.</p>
+    <form id="authForm">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required maxlength="120">
+      <label for="pw">Password (8+ letters)</label>
+      <input id="pw" type="password" autocomplete="current-password" required minlength="8" maxlength="100">
+      <p id="authErr" class="err"></p>
+      <button class="btn" id="authBtn" type="submit">Create account</button>
+      <button class="btn ghost" id="authSwitch" type="button">I already have an account</button>
+    </form>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="appView" hidden>
+  <!-- ASK -->
+  <div id="tab-ask">
+    <details class="card" id="setup" open>
+      <summary>My class and subject</summary>
+      <label for="board">Board</label><select id="board"></select>
+      <div id="collegeBox" hidden>
+        <label for="uni">University</label><input id="uni" maxlength="80" placeholder="e.g. Mumbai University">
+        <div class="grid2"><div><label for="course">Course</label><input id="course" maxlength="80" placeholder="e.g. B.Sc. Physics"></div>
+        <div><label for="sem">Semester</label><input id="sem" maxlength="20" placeholder="e.g. 3"></div></div>
+      </div>
+      <div class="grid2"><div><label for="grade">Class / Level</label><select id="grade"></select></div>
+      <div><label for="lang">Answer language</label><select id="lang"></select></div></div>
+      <label for="subject">Subject</label><select id="subject"></select>
+      <input id="subjectOther" maxlength="60" placeholder="Type your subject" hidden>
+      <label for="chapter">Chapter or topic (optional)</label><input id="chapter" maxlength="100" placeholder="e.g. Photosynthesis">
+    </details>
+
+    <div class="chips" id="modes" role="tablist"></div>
+    <div id="chat"></div>
+
+    <div class="card">
+      
+      <textarea id="q" maxlength="2000" placeholder="Type your question, or tap the mic..."></textarea>
+      <div class="row">
+        <button id="mic" class="mic" aria-label="Speak your question"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <button id="send" class="btn grow">Ask Study</button>
+      </div>
+      <div class="row" id="deepRow"><label class="tg"><input type="checkbox" id="deep"> Understand deeply <span class="pro" id="deepPro">PRO</span></label></div>
+      <div class="row">
+        <label class="tg"><input type="checkbox" id="wakeTg"> Hey Study (hands-free)</label>
+        <label class="tg"><input type="checkbox" id="speakTg"> Speak answers</label>
+      </div>
+      <p id="voiceNote" class="muted"></p>
+      <p id="chatErr" class="err"></p>
+    </div>
+  </div>
+
+  <!-- CREATE -->
+  <div id="tab-create" hidden>
+    <h2>Create</h2>
+    <div class="card"><h3>Photo question <span class="pro lockpro">PRO</span></h3>
+      <p class="muted">Take a photo of a question. The photo is only sent to the AI and is never saved.</p>
+      <input type="file" id="photo" accept="image/jpeg,image/png,image/webp">
+      <label for="photoQ">What should I explain? (optional)</label><input id="photoQ" maxlength="300">
+      <p class="row"><button class="btn" id="photoGo">Solve from photo</button></p>
+      <div id="photoOut"></div></div>
+    <div class="card"><h3>Diagram <span class="pro lockpro">PRO</span></h3>
+      <input id="imgP" maxlength="300" placeholder="e.g. parts of a plant cell">
+      <p class="row"><button class="btn" id="imgGo">Draw diagram</button></p><div id="imgOut"></div></div>
+    <div class="card"><h3>Short video <span class="pro lockpro">PRO</span></h3>
+      <input id="vidP" maxlength="300" placeholder="e.g. how the water cycle works">
+      <p class="muted">Videos take 1 to 3 minutes and may not be on the free AI tier.</p>
+      <p class="row"><button class="btn" id="vidGo">Make video</button></p><div id="vidOut"></div></div>
+  </div>
+
+  <!-- CARDS -->
+  <div id="tab-cards" hidden>
+    <h2>Flashcards <span class="pro lockpro">PRO</span></h2>
+    <div class="card"><input id="cardT" maxlength="200" placeholder="Topic, e.g. Newton's laws">
+      <p class="row"><button class="btn" id="cardGo">Make flashcards</button></p>
+      <div id="cardBox" hidden>
+        <div class="flash" id="flash"><div class="in"><div class="f" id="cardF"></div><div class="b" id="cardB"></div></div></div>
+        <div class="row"><button class="btn ghost sm" id="cardPrev">Back</button><span class="muted grow" id="cardN"></span><button class="btn ghost sm" id="cardNext">Next</button></div>
+        <p class="muted">Tap the card to flip it.</p></div></div>
+  </div>
+
+  <!-- PLAN -->
+  <div id="tab-plan" hidden>
+    <h2>7-day study plan <span class="pro lockpro">PRO</span></h2>
+    <div class="card"><label for="planG">What are you studying for?</label>
+      <input id="planG" maxlength="300" placeholder="e.g. Class 10 Science exam, 3 chapters">
+      <label for="planH">Hours per day</label><input id="planH" type="number" min="0.5" max="12" step="0.5" value="2">
+      <p class="row"><button class="btn" id="planGo">Make my plan</button></p>
+      <div id="planOut"></div></div>
+  </div>
+
+  <!-- NOTES -->
+  <div id="tab-notes" hidden>
+    <h2>My notes <span class="pro lockpro">PRO</span></h2>
+    <div class="card"><input id="noteQ" type="search" maxlength="80" placeholder="Search notes">
+      <div id="noteList"></div></div>
+  </div>
+</section>
+</main>
+
+<nav id="bottomNav" hidden>
+  <button data-tab="ask" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>Ask</button>
+  <button data-tab="create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m4 18 6-5 4 3 3-2 3 3"/></svg>Create</button>
+  <button data-tab="cards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 3h14v12"/></svg>Cards</button>
+  <button data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Plan</button>
+  <button data-tab="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>Notes</button>
+</nav>
+
+<!-- PAYWALL / ACCOUNT SHEET -->
+<div class="modal" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2 id="mTitle">Unlock Study</h2>
+    <p id="mMsg" class="muted"></p>
+    <div id="mAccount" hidden>
+      <p id="mWho"></p><p id="mPlan" class="muted"></p>
+    </div>
+    <label for="code">Redeem code</label>
+    <input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX">
+    <p id="codeMsg" class="err"></p>
+    <div class="row"><button class="btn grow" id="redeemBtn">Redeem</button><button class="btn ghost" id="mClose">Close</button></div>
+    <p class="muted" id="buyNote"></p>
+    <p class="row"><button class="btn ghost sm" id="logoutBtn" hidden>Log out</button><a class="muted" href="/privacy.html">Privacy</a></p>
+  </div>
+</div>
+<div id="printArea"></div>
+
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function md(t) { // escape FIRST, then add a few safe tags
+  let html = '', inList = false;
+  esc(t).split('\n').forEach(l => {
+    l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    let m = /^\s*[-*\u2022]\s+(.*)/.exec(l);
+    if (m) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + m[1] + '</li>'; return; }
+    if (inList) { html += '</ul>'; inList = false; }
+    if ((m = /^#{1,4}\s+(.*)/.exec(l))) html += '<h4>' + m[1] + '</h4>'; else if (l.trim()) html += '<p>' + l + '</p>';
+  });
+  return html + (inList ? '</ul>' : '');
+}
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
+const LS = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } } };
+  /* ---------- state ---------- */
+let user = null, cfg = { deepSources: false, freeQuestions: 20, buyNote: '' }, token = LS.get('token', ''), mode = 'explain', history = [], busy = false;
+const BOARDS = ['CBSE', 'ICSE', 'ISC', 'GSEB Gujarat', 'GBSE Goa', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Kerala', 'UP', 'Other state', 'IGCSE', 'IB', 'College/University'];
+const LANGS = ['English', 'Hindi', 'Gujarati', 'Hinglish', 'Marathi', 'Tamil'];
+const LANGCODE = { English: 'en-IN', Hindi: 'hi-IN', Gujarati: 'gu-IN', Hinglish: 'en-IN', Marathi: 'mr-IN', Tamil: 'ta-IN' };
+const MODES = [['explain', 'Explain simply'], ['solve', 'Step-by-step solve'], ['notes', 'Quick revision notes'], ['quiz', 'Practice quiz'], ['tips', 'Exam tips']];
+const COLLEGE = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'Electronics', 'Mechanical', 'Civil', 'Economics', 'Accounts/Commerce', 'English', 'Other'];
+const SUBJ = {
+  low: ['Maths', 'Science', 'Social Science', 'English', 'Hindi', 'Sanskrit', 'Computer', 'Other'],
+  mid: ['Maths', 'Science', 'Social Science', 'English', 'Hindi', 'Information Technology', 'Other'],
+  high: ['Physics', 'Chemistry', 'Maths', 'Biology', 'English', 'Accountancy', 'Business Studies', 'Economics', 'History', 'Geography', 'Political Science', 'Computer Science', 'Other']
+};
+const fill = (sel, arr) => { sel.innerHTML = arr.map(v => '<option>' + esc(v) + '</option>').join(''); };
+
+/* ---------- api ---------- */
+async function api(path, body, method) {
+  const opts = { method: method || (body ? 'POST' : 'GET'), credentials: 'same-origin', headers: {} };
+  if (token) opts.headers.Authorization = 'Bearer ' + token;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  let r, j = {};
+  try { r = await fetch(path, opts); j = await r.json().catch(() => ({})); }
+  catch (e) { return { ok: false, status: 0, data: { error: 'No internet connection. Please try again.' } }; }
+  if (r.status === 401 && j.login) { setUser(null); }
+  if (r.status === 402 || (r.status === 403 && j.locked)) openModal(j.error, true);
+  if (j.user) setUser(j.user);
+  return { ok: r.ok, status: r.status, data: j };
+}
+
+/* ---------- user / screens ---------- */
+function setUser(u) {
+  user = u;
+  $('authView').hidden = !!u; $('appView').hidden = !u; $('bottomNav').hidden = !u;
+  $('quotaChip').hidden = !u; $('streak').hidden = !(u && u.pro && u.streak > 0);
+  if (!u) return;
+  $('quotaChip').textContent = u.unlimited ? 'Unlimited Pro' : (u.pro ? 'Pro \u00b7 ' : '') + u.remaining + ' left';
+  $('quotaChip').classList.toggle('warn', !u.unlimited && u.remaining <= 3);
+  $('streak').textContent = '\ud83d\udd25 ' + u.streak + ' day' + (u.streak === 1 ? '' : 's');
+  document.querySelectorAll('.lockpro,#deepPro').forEach(e => { e.hidden = u.pro; });
+  if (!cfg.deepSources && $('deepPro')) $('deepPro').title = 'Uses Gemini when no search key is set';
+}
+function openModal(msg, paywall) {
+  $('mTitle').textContent = paywall ? (user && user.remaining === 0 ? 'Out of questions' : 'Unlock Pro') : 'My account';
+  $('mMsg').textContent = msg || '';
+  $('mAccount').hidden = paywall; $('logoutBtn').hidden = paywall;
+  if (user) { $('mWho').textContent = user.email; $('mPlan').textContent = (user.unlimited ? 'Unlimited Pro' : user.pro ? 'Pro, ' + user.remaining + ' questions left' : 'Free, ' + user.remaining + ' questions left') + (user.pro ? ' \u00b7 streak ' + user.streak + ' day(s)' : ''); }
+  $('buyNote').textContent = cfg.buyNote || ''; $('codeMsg').textContent = ''; $('codeMsg').className = 'err';
+  $('modal').hidden = false;
+}
+$('mClose').onclick = () => { $('modal').hidden = true; };
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) $('modal').hidden = true; });
+$('quotaChip').onclick = () => openModal('', false);
+$('redeemBtn').onclick = async () => {
+  const code = $('code').value.trim(); if (!code) return;
+  $('redeemBtn').disabled = true;
+  const r = await api('/api/redeem', { code });
+  $('redeemBtn').disabled = false;
+  $('codeMsg').textContent = r.ok ? r.data.message : (r.data.error || 'Could not redeem.');
+  $('codeMsg').className = r.ok ? 'ok' : 'err';
+  if (r.ok) { $('code').value = ''; setTimeout(() => { $('modal').hidden = true; }, 1200); }
+};
+$('logoutBtn').onclick = async () => { await api('/api/logout', {}); token = ''; LS.set('token', ''); history = []; $('chat').innerHTML = ''; $('modal').hidden = true; setUser(null); };
+function needPro(e) { if (user && !user.pro) { e && e.preventDefault(); openModal('This is a Pro feature. Enter a code to unlock it.', true); return true; } return false; }
+
+/* auth */
+let signup = true;
+function authMode() { $('authTitle').textContent = signup ? 'Create your account' : 'Welcome back'; $('authBtn').textContent = signup ? 'Create account' : 'Log in'; $('authSwitch').textContent = signup ? 'I already have an account' : 'Create a new account'; $('pw').autocomplete = signup ? 'new-password' : 'current-password'; }
+$('authSwitch').onclick = () => { signup = !signup; authMode(); };
+$('authForm').onsubmit = async e => {
+  e.preventDefault(); $('authErr').textContent = ''; $('authBtn').disabled = true;
+  const r = await api(signup ? '/api/signup' : '/api/login', { email: $('email').value, password: $('pw').value });
+  $('authBtn').disabled = false;
+  if (r.ok) { token = r.data.token; LS.set('token', token); setUser(r.data.user); } else $('authErr').textContent = r.data.error || 'Something went wrong.';
+};
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('#bottomNav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#bottomNav button').forEach(x => x.classList.toggle('on', x === b));
+  ['ask', 'create', 'cards', 'plan', 'notes'].forEach(t => { $('tab-' + t).hidden = t !== b.dataset.tab; });
+  if (b.dataset.tab === 'notes') loadNotes();
+  window.scrollTo(0, 0);
+});
+
+/* ---------- study setup ---------- */
+fill($('board'), BOARDS); fill($('lang'), LANGS);
+function setupGrades() {
+  const col = $('board').value === 'College/University';
+  $('collegeBox').hidden = !col;
+  const cur = $('grade').value; fill($('grade'), col ? ['UG', 'PG'] : ['6', '7', '8', '9', '10', '11', '12']);
+  if ([].some.call($('grade').options, o => o.value === cur)) $('grade').value = cur;
+  setupSubjects();
+}
+function setupSubjects() {
+  const g = $('grade').value, col = $('board').value === 'College/University';
+  const cur = $('subject').value;
+  fill($('subject'), col || g === 'UG' || g === 'PG' ? COLLEGE : (+g <= 8 ? SUBJ.low : +g <= 10 ? SUBJ.mid : SUBJ.high));
+  if ([].some.call($('subject').options, o => o.value === cur)) $('subject').value = cur;
+  $('subjectOther').hidden = $('subject').value !== 'Other';
+}
+$('board').onchange = () => { setupGrades(); saveSetup(); };
+$('grade').onchange = () => { setupSubjects(); saveSetup(); };
+$('subject').onchange = () => { $('subjectOther').hidden = $('subject').value !== 'Other'; saveSetup(); };
+['lang', 'chapter', 'uni', 'course', 'sem', 'subjectOther'].forEach(i => $(i).addEventListener('change', saveSetup));
+function saveSetup() { LS.set('setup', { board: $('board').value, grade: $('grade').value, subject: $('subject').value, other: $('subjectOther').value, lang: $('lang').value, chapter: $('chapter').value, uni: $('uni').value, course: $('course').value, sem: $('sem').value }); }
+(function loadSetup() {
+  const s = LS.get('setup', null);
+  if (s) { $('board').value = s.board || 'CBSE'; setupGrades(); $('grade').value = s.grade || '10'; setupSubjects(); $('subject').value = s.subject || 'Maths'; $('lang').value = s.lang || 'English'; $('chapter').value = s.chapter || ''; $('uni').value = s.uni || ''; $('course').value = s.course || ''; $('sem').value = s.sem || ''; $('subjectOther').value = s.other || ''; $('subjectOther').hidden = $('subject').value !== 'Other'; }
+  else { setupGrades(); $('grade').value = '10'; setupSubjects(); }
+})();
+function ctx() {
+  const subj = $('subject').value === 'Other' ? ($('subjectOther').value.trim() || 'General') : $('subject').value;
+  return { board: $('board').value, grade: $('grade').value, subject: subj, chapter: $('chapter').value, language: $('lang').value, university: $('uni').value, course: $('course').value, semester: $('sem').value };
+}
+$('modes').innerHTML = MODES.map(m => '<button type="button" data-m="' + m[0] + '" class="' + (m[0] === mode ? 'on' : '') + '">' + esc(m[1]) + '</button>').join('');
+$('modes').onclick = e => { const b = e.target.closest('button'); if (!b) return; mode = b.dataset.m; [].forEach.call($('modes').children, x => x.classList.toggle('on', x === b)); };
+
+/* ---------- chat ---------- */
+function plain(html) { const d = document.createElement('div'); d.innerHTML = html; return d.textContent; }
+function addBubble(cls, html) { const d = document.createElement('div'); d.className = 'bubble ' + cls; d.innerHTML = html; $('chat').appendChild(d); d.scrollIntoView({ block: 'nearest' }); return d; }
+function renderAnswer(text, m, sources, title) {
+  let q = text, a = '';
+  if (m === 'quiz' && text.indexOf('===ANSWERS===') > -1) { const p = text.split('===ANSWERS==='); q = p[0]; a = p.slice(1).join(''); }
+  const d = addBubble('a', md(q));
+  if (a) {
+    const box = document.createElement('div'); box.className = 'ans'; box.hidden = true; box.innerHTML = md(a);
+    const b = document.createElement('button'); b.className = 'btn ghost sm'; b.textContent = 'Show answers';
+    b.onclick = () => { box.hidden = !box.hidden; b.textContent = box.hidden ? 'Show answers' : 'Hide answers'; };
+    d.appendChild(b); d.appendChild(box);
+  }
+  if (sources && sources.length) {
+    const s = document.createElement('div'); s.className = 'src'; s.appendChild(document.createTextNode('Sources:'));
+    sources.forEach((u, i) => { if (!/^https?:\/\//i.test(u)) return; const l = document.createElement('a'); l.href = u; l.target = '_blank'; l.rel = 'noopener noreferrer'; l.textContent = '[' + (i + 1) + '] ' + u; s.appendChild(l); });
+    d.appendChild(s);
+  }
+  const row = document.createElement('div'); row.className = 'row'; row.appendChild(document.createTextNode(' '));
+  const mk = (t, fn) => { const b = document.createElement('button'); b.className = 'btn ghost sm'; b.textContent = t; b.onclick = fn; row.appendChild(b); return b; };
+  mk('Listen', () => speak(text.replace('===ANSWERS===', ' Answers. ')));
+  const sv = mk('Save note', async () => { if (needPro()) return; const r = await api('/api/notes', { title: title || 'Note', body: text.replace('===ANSWERS===', '\n--- Answers ---\n') }); if (r.ok) toast('Saved to My notes'); else if (r.data.error) toast(r.data.error); });
+  const pr = mk('Print', () => { if (needPro()) return; printHtml(title || 'Study notes', md(text.replace('===ANSWERS===', '\n## Answers\n'))); });
+  [sv, pr].forEach(b => { if (user && !user.pro) { const s = document.createElement('span'); s.className = 'pro'; s.textContent = 'PRO'; b.appendChild(s); } });
+  d.appendChild(row);
+  if ($('speakTg').checked) speak(text.replace('===ANSWERS===', ''));
+}
+async function ask(text) {
+  text = (text || $('q').value).trim(); if (!text || busy) return;
+  if ($('deep').checked && needPro()) return;
+  busy = true; $('chatErr').textContent = ''; $('send').disabled = true;
+  addBubble('u', esc(text)); $('q').value = '';
+  const wait = addBubble('a', '<span class="spin"></span>Thinking...');
+  const r = await api('/api/chat', Object.assign(ctx(), { message: text, mode, deep: $('deep').checked, history: history.slice(-6) }));
+  wait.remove(); busy = false; $('send').disabled = false;
+  if (!r.ok) { $('chatErr').textContent = r.data.error || 'Something went wrong.'; return; }
+  history.push({ role: 'user', content: text }, { role: 'assistant', content: r.data.answer.slice(0, 1500) });
+  if (r.data.deepFallback) toast('Deep search is not set up, so Gemini answered.');
+  renderAnswer(r.data.answer, r.data.mode, cfg.deepSources ? r.data.sources : null, text.slice(0, 60));
+}
+$('send').onclick = () => ask();
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); });
+
+/* ---------- print ---------- */
+function printHtml(title, html) {
+  $('printArea').innerHTML = '<h2>' + esc(title) + '</h2>' + html + '<p><small>Made with Study. Not an official board resource.</small></p>';
+  setTimeout(() => { window.print(); }, 50);
+}
+
+/* ---------- voice ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = window.speechSynthesis;
+const WAKE = /\bh(?:ey|ay|i|ai),?\s+stud(?:y|ie|i)\b/i;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+$('voiceNote').textContent = SR
+  ? 'Voice works only while Study is open and your screen is on. It cannot listen in the background.' + (isIOS ? ' On iPhone voice is limited in some browsers.' : '')
+  : 'Voice input is not available in this browser. Try Chrome on Android or a computer, or use your keyboard\u2019s mic button.';
+if (!SR) { $('wakeTg').disabled = true; $('mic').classList.add('off'); }
+if (!synth) { $('speakTg').disabled = true; }
+function speak(t) {
+  if (!synth) { toast('Speaking is not supported in this browser.'); return; }
+  synth.cancel(); const u = new SpeechSynthesisUtterance(String(t).slice(0, 2500)); u.lang = LANGCODE[$('lang').value] || 'en-IN';
+  wake.muted = true; u.onend = u.onerror = () => { wake.muted = false; }; synth.speak(u);
+}
+let micRec = null;
+$('mic').onclick = () => {
+  if (!SR) { toast('Voice typing is not supported here. Use your keyboard\u2019s mic button instead.'); return; }
+  if (micRec) { micRec.stop(); return; }
+  const r = new SR(); micRec = r; r.lang = LANGCODE[$('lang').value] || 'en-IN'; r.interimResults = true; r.continuous = false;
+  $('mic').classList.add('on');
+  r.onresult = e => { let t = ''; for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; $('q').value = t; };
+  r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Microphone permission is blocked. Allow it in your browser settings.'); };
+  r.onend = () => { micRec = null; $('mic').classList.remove('on'); };
+  try { r.start(); } catch (e) { micRec = null; $('mic').classList.remove('on'); }
+};
+const wake = { on: false, rec: null, state: 'listening', idx: -1, muted: false };
+const after = t => { const m = WAKE.exec(t); return m ? t.slice(m.index + m[0].length) : t; };
+function wakeResult(e) {
+  if (wake.muted) return;
+  for (let i = e.resultIndex; i < e.results.length; i++) {
+    const r = e.results[i], t = r[0].transcript; let q = null;
+    if (wake.state === 'listening') {
+      if (!WAKE.test(t)) continue;
+      wake.state = 'capturing'; wake.idx = i; q = after(t); $('voiceNote').textContent = 'Listening... ask your question now.';
+    } else if (i < wake.idx) continue;
+    else q = i === wake.idx ? after(t) : t;
+    q = q.replace(/^[\s,.]+/, '').trim();
+    if (q) $('q').value = q;
+    if (r.isFinal) {
+      if (q) { wake.state = 'listening'; wake.idx = -1; $('voiceNote').textContent = 'Hey Study is on. Say "Hey Study" then your question.'; ask(q); }
+      else wake.idx = i + 1;
+    }
+  }
+}
+function wakeStart() {
+  const r = new SR(); wake.rec = r; r.continuous = true; r.interimResults = true; r.lang = LANGCODE[$('lang').value] || 'en-IN';
+  r.onresult = wakeResult;
+  r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { wakeStop(); toast('Microphone permission is blocked. Allow it in your browser settings.'); } };
+  r.onend = () => { if (wake.on) setTimeout(() => { if (wake.on) { try { wakeStart(); } catch (e) { /* retry on next end */ } } }, 300); };
+  r.start();
+}
+function wakeStop() { wake.on = false; $('wakeTg').checked = false; wake.state = 'listening'; wake.idx = -1; if (wake.rec) { try { wake.rec.abort(); } catch (e) { /* ignore */ } wake.rec = null; } $('voiceNote').textContent = 'Voice works only while Study is open and your screen is on.'; }
+$('wakeTg').onchange = () => {
+  if (!SR) { $('wakeTg').checked = false; return; }
+  if ($('wakeTg').checked) { wake.on = true; wake.state = 'listening'; try { wakeStart(); $('voiceNote').textContent = 'Hey Study is on. Say "Hey Study" then your question. Keep this screen open and on.'; } catch (e) { wakeStop(); } }
+  else wakeStop();
+};
+document.addEventListener('visibilitychange', () => { if (document.hidden && wake.on) { wakeStop(); } });
+window.__study = { wakeResult, get state() { return wake.state; } }; // used by the automated tests
+  /* ---------- Create: photo, diagram, video ---------- */
+function lockClick(id, fn) { $(id).onclick = e => { if (needPro(e)) return; fn(); }; }
+const fileToDataUrl = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
+lockClick('photoGo', async () => {
+  const f = $('photo').files[0]; if (!f) { toast('Choose a photo first.'); return; }
+  if (f.size > 5 * 1024 * 1024) { toast('Photo is bigger than 5 MB.'); return; }
+  $('photoOut').innerHTML = '<span class="spin"></span>Reading your photo...';
+  const r = await api('/api/vision', Object.assign(ctx(), { image: await fileToDataUrl(f), question: $('photoQ').value }));
+  $('photoOut').innerHTML = r.ok ? '<div class="bubble a">' + md(r.data.answer) + '</div>' : '<p class="err">' + esc(r.data.error || 'Failed') + '</p>';
+});
+lockClick('imgGo', async () => {
+  const p = $('imgP').value.trim(); if (!p) return;
+  $('imgOut').innerHTML = '<span class="spin"></span>Drawing...';
+  const r = await api('/api/image', { prompt: p });
+  if (!r.ok) { $('imgOut').innerHTML = '<p class="err">' + esc(r.data.error || 'Failed') + '</p>'; return; }
+  const img = document.createElement('img'); img.className = 'out'; img.alt = 'Diagram: ' + p;
+  img.src = 'data:' + (/^image\/(png|jpeg|webp)$/.test(r.data.mime) ? r.data.mime : 'image/png') + ';base64,' + r.data.data;
+  $('imgOut').innerHTML = ''; $('imgOut').appendChild(img);
+});
+lockClick('vidGo', async () => {
+  const p = $('vidP').value.trim(); if (!p) return;
+  $('vidOut').innerHTML = '<span class="spin"></span>Starting video...';
+  const r = await api('/api/video', { prompt: p });
+  if (!r.ok) { $('vidOut').innerHTML = '<p class="err">' + esc(r.data.error || 'Failed') + '</p>'; return; }
+  const id = r.data.id; let tries = 0;
+  const poll = async () => {
+    const s = await api('/api/video/' + encodeURIComponent(id));
+    if (!s.ok) { $('vidOut').innerHTML = '<p class="err">' + esc(s.data.error || 'Failed') + '</p>'; return; }
+    if (s.data.done) { const v = document.createElement('video'); v.className = 'out'; v.controls = true; v.src = s.data.url; $('vidOut').innerHTML = ''; $('vidOut').appendChild(v); return; }
+    if (++tries > 90) { $('vidOut').innerHTML = '<p class="err">Video is taking too long. Try again later.</p>'; return; }
+    $('vidOut').innerHTML = '<span class="spin"></span>Making your video (' + tries * 8 + 's)...'; setTimeout(poll, 8000);
+  };
+  setTimeout(poll, 3000);
+});
+
+/* ---------- flashcards ---------- */
+let cards = [], ci = 0;
+function showCard() { $('flash').classList.remove('flip'); $('cardF').textContent = cards[ci].q; $('cardB').textContent = cards[ci].a; $('cardN').textContent = (ci + 1) + ' / ' + cards.length; }
+$('flash').onclick = () => $('flash').classList.toggle('flip');
+$('cardPrev').onclick = () => { if (cards.length) { ci = (ci + cards.length - 1) % cards.length; showCard(); } };
+$('cardNext').onclick = () => { if (cards.length) { ci = (ci + 1) % cards.length; showCard(); } };
+lockClick('cardGo', async () => {
+  const t = $('cardT').value.trim(); if (!t) return;
+  $('cardGo').disabled = true; const r = await api('/api/flashcards', Object.assign(ctx(), { topic: t })); $('cardGo').disabled = false;
+  if (!r.ok) { toast(r.data.error || 'Failed'); return; }
+  cards = r.data.cards; ci = 0; $('cardBox').hidden = false; showCard();
+});
+  /* ---------- planner ---------- */
+let lastPlan = '';
+lockClick('planGo', async () => {
+  const g = $('planG').value.trim(); if (!g) return;
+  $('planOut').innerHTML = '<span class="spin"></span>Planning...';
+  const r = await api('/api/planner', Object.assign(ctx(), { goal: g, hours: $('planH').value }));
+  if (!r.ok) { $('planOut').innerHTML = '<p class="err">' + esc(r.data.error || 'Failed') + '</p>'; return; }
+  lastPlan = r.data.plan; $('planOut').innerHTML = '<div class="bubble a">' + md(lastPlan) + '</div><div class="row"><button class="btn ghost sm" id="planSave">Save note</button><button class="btn ghost sm" id="planPrint">Print</button></div>';
+  $('planSave').onclick = async () => { const s = await api('/api/notes', { title: '7-day plan: ' + g.slice(0, 60), body: lastPlan }); toast(s.ok ? 'Saved to My notes' : s.data.error); };
+  $('planPrint').onclick = () => printHtml('7-day study plan', md(lastPlan));
+});
+
+/* ---------- notes ---------- */
+let noteTimer = null;
+async function loadNotes() {
+  if (!user) return;
+  if (!user.pro) { $('noteList').innerHTML = '<p class="muted">Saved notes are a Pro feature. <a href="#" id="noteUnlock">Enter a code</a></p>'; $('noteUnlock').onclick = e => { e.preventDefault(); openModal('Enter a code to unlock your notes library.', true); }; return; }
+  const r = await api('/api/notes?q=' + encodeURIComponent($('noteQ').value));
+  if (!r.ok) return;
+  $('noteList').innerHTML = r.data.notes.length ? '' : '<p class="muted">No notes yet. Tap "Save note" under an answer.</p>';
+  r.data.notes.forEach(n => {
+    const d = document.createElement('div'); d.className = 'note';
+    d.innerHTML = '<h4>' + esc(n.title) + '</h4><div class="muted">' + esc(n.created.slice(0, 10)) + '</div><details><summary>Open</summary><div class="nbody">' + md(n.body) + '</div></details>';
+    const row = document.createElement('div'); row.className = 'row';
+    const pb = document.createElement('button'); pb.className = 'btn ghost sm'; pb.textContent = 'Print'; pb.onclick = () => printHtml(n.title, md(n.body));
+    const db = document.createElement('button'); db.className = 'btn ghost sm'; db.textContent = 'Delete'; db.onclick = async () => { if (confirm('Delete this note?')) { await api('/api/notes/' + encodeURIComponent(n.id), null, 'DELETE'); loadNotes(); } };
+    row.appendChild(pb); row.appendChild(db); d.appendChild(row); $('noteList').appendChild(d);
+  });
+}
+$('noteQ').oninput = () => { clearTimeout(noteTimer); noteTimer = setTimeout(loadNotes, 300); };
+
+/* ---------- PWA install ---------- */
+let deferred = null;
+const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; if (!LS.get('noInstall', false) && !standalone) $('installBar').hidden = false; });
+$('installBtn').onclick = async () => { if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; } $('installBar').hidden = true; };
+$('installX').onclick = () => { $('installBar').hidden = true; LS.set('noInstall', true); };
+if (isIOS && !standalone && !LS.get('noInstall', false)) { $('installMsg').textContent = 'To install: tap Share, then "Add to Home Screen".'; $('installBtn').hidden = true; $('installBar').hidden = false; }
+if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+
+/* ---------- start ---------- */
+(async function init() {
+  authMode();
+  const c = await api('/api/config'); if (c.ok) { cfg = c.data; $('buyNote').textContent = cfg.buyNote; }
+  if (!cfg.deepSources) $('deepRow').title = 'No search key set: Gemini will answer';
+  const r = await api('/api/me');
+  if (r.ok) setUser(r.data.user); else setUser(null);
+})();
+})();
+</script>
+</body>
+</html>
