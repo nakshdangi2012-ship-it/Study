@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b1a3a">
+<title>Study admin</title>
+<style>
+:root{--bg:#0b0f1a;--panel:#121826;--line:#232c44;--navy2:#2747a8;--text:#e6e9f2;--mut:#9aa3b8;--bad:#ff7b7b;--ok:#6fd6a0}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 Inter,system-ui,sans-serif;padding:14px;max-width:720px;margin:0 auto}
+h1{font-size:22px;margin:6px 0 12px}h2{font-size:17px;margin:0 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+input,select,button{font:inherit;color:var(--text)}
+input,select{width:100%;background:#0d1322;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px}
+.btn{background:var(--navy2);border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;margin-top:10px}
+.btn.ghost{background:#182038;border:1px solid var(--line)}.btn.sm{padding:6px 10px;font-size:13px;margin:0;white-space:nowrap;flex:0 0 auto}
+.msg{min-height:20px;font-size:14px}.err{color:var(--bad)}.ok{color:var(--ok)}.muted{color:var(--mut);font-size:13px}
+.code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:#0d1322;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;word-break:break-all}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.st-unused{color:var(--ok)}.st-redeemed{color:var(--mut)}.st-revoked{color:var(--bad)}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<h1>Study admin</h1>
+<div class="card">
+  <h2>Admin key</h2>
+  <input id="key" type="password" autocomplete="off" placeholder="Paste your ADMIN_KEY">
+  <p class="muted">Kept only in this tab. Never share it.</p>
+</div>
+<div class="card">
+  <h2>Make codes</h2>
+  <label for="type">Type</label>
+  <select id="type"><option value="PRO">PRO - Pro features + bonus questions</option><option value="PLUS10">PLUS10 - adds 10 questions</option><option value="UNLIMITED_PRO">UNLIMITED_PRO - unlimited + all Pro</option></select>
+  <label for="fmt">Format</label>
+  <select id="fmt"><option value="strong">Strong (K7QM-X4TD-9HPW-R2NB-5VJC-8GEA)</option><option value="standard">Standard (GJS5N92-66235)</option></select>
+  <label for="count">How many (1-100)</label>
+  <input id="count" type="number" min="1" max="100" value="1" inputmode="numeric">
+  <button class="btn" id="gen">Make codes</button>
+  <p class="msg" id="genMsg"></p>
+  <div id="newBox" hidden>
+    <p class="muted"><b>Copy these now.</b> They are shown only once and cannot be shown again.</p>
+    <button class="btn ghost sm" id="copyAll">Copy all</button>
+    <div id="newList"></div>
+  </div>
+</div>
+<div class="card">
+  <h2>All codes</h2>
+  <button class="btn ghost" id="refresh">Refresh list</button>
+  <p class="msg" id="listMsg"></p>
+  <div class="scroll"><table id="tbl" hidden><thead><tr><th>Type</th><th>Status</th><th>Made</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+$('key').value = sessionStorage.getItem('adminKey') || '';
+$('key').addEventListener('change', () => sessionStorage.setItem('adminKey', $('key').value));
+async function call(path, method, body) {
+  sessionStorage.setItem('adminKey', $('key').value);
+  const o = { method: method || 'GET', headers: { 'x-admin-key': $('key').value } };
+  if (body) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+  try { const r = await fetch(path, o); return { ok: r.ok, data: await r.json().catch(() => ({})) }; }
+  catch (e) { return { ok: false, data: { error: 'No connection.' } }; }
+}
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); } catch (e) {
+    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (x) { /* ignore */ } t.remove();
+  }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = o; }, 1200); }
+}
+let fresh = [];
+$('gen').onclick = async () => {
+  $('genMsg').textContent = ''; $('genMsg').className = 'msg';
+  const r = await call('/api/admin/codes', 'POST', { type: $('type').value, format: $('fmt').value, count: Number($('count').value) });
+  if (!r.ok) { $('genMsg').textContent = r.data.error || 'Failed'; $('genMsg').className = 'msg err'; return; }
+  fresh = r.data.codes.map(c => c.text);
+  $('newList').innerHTML = '';
+  fresh.forEach(t => {
+    const d = document.createElement('div'); d.className = 'code'; const s = document.createElement('span'); s.textContent = t;
+    const b = document.createElement('button'); b.className = 'btn ghost sm'; b.textContent = 'Copy'; b.onclick = () => copy(t, b);
+    d.appendChild(s); d.appendChild(b); $('newList').appendChild(d);
+  });
+  $('newBox').hidden = false; $('genMsg').textContent = fresh.length + ' code(s) made.'; $('genMsg').className = 'msg ok';
+  load();
+};
+$('copyAll').onclick = () => copy(fresh.join('\n'), $('copyAll'));
+async function load() {
+  const r = await call('/api/admin/codes');
+  if (!r.ok) { $('listMsg').textContent = r.data.error || 'Failed'; $('listMsg').className = 'msg err'; $('tbl').hidden = true; return; }
+  $('listMsg').textContent = r.data.total + ' code(s)'; $('listMsg').className = 'msg muted';
+  $('tbl').hidden = false; $('rows').innerHTML = '';
+  r.data.codes.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(c.type) + '<br><span class="muted">' + esc(c.format) + '</span></td><td class="st-' + esc(c.status) + '">' + esc(c.status) + (c.redeemedBy ? '<br><span class="muted">' + esc(c.redeemedBy) + '</span>' : '') + '</td><td>' + esc(c.created.slice(0, 10)) + '</td><td></td>';
+    if (c.status === 'unused') {
+      const b = document.createElement('button'); b.className = 'btn ghost sm'; b.textContent = 'Revoke';
+      b.onclick = async () => { if (!confirm('Revoke this code?')) return; await call('/api/admin/codes/' + c.id + '/revoke', 'POST', {}); load(); };
+      tr.lastChild.appendChild(b);
+    }
+    $('rows').appendChild(tr);
+  });
+}
+$('refresh').onclick = load;
+})();
+</script>
+</body>
+  </html>
